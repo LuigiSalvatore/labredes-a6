@@ -1,36 +1,64 @@
 // =========================
-// ===== SERVIDOR UDP =====
+// ===== SERVIDOR UDP ======
 // =========================
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#define PORT 8081
+#include <sys/socket.h>
 
-int main() {
-    int sockfd;
-    struct sockaddr_in servaddr, cliaddr;
-    socklen_t len = sizeof(cliaddr);
-    char buffer[1024];
-    FILE *file = fopen("recebido_udp.txt", "w");
+#define BUFLEN 512
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+void die(char *s)
+{
+    perror(s);
+    exit(1);
+}
 
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(PORT);
+int main(int argc, char **argv)
+{
+    struct sockaddr_in si_me, si_other;
+    int s, slen = sizeof(si_other), recv_len;
+    char buf[BUFLEN];
+    FILE *outfile;
 
-    bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
-
-    int n;
-    while ((n = recvfrom(sockfd, buffer, 1024, 0, (struct sockaddr *)&cliaddr, &len)) > 0) {
-        fwrite(buffer, sizeof(char), n, file);
-        if (n < 1024) break; // fim de arquivo
+    if (argc != 2) {
+        printf("Usage: %s <port>\n", argv[0]);
+        return -1;
     }
 
-    fclose(file);
-    close(sockfd);
+    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+        die("socket");
+
+    memset((char *) &si_me, 0, sizeof(si_me));
+    si_me.sin_family = AF_INET;
+    si_me.sin_port = htons(atoi(argv[1]));
+    si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(s, (struct sockaddr*)&si_me, sizeof(si_me)) == -1)
+        die("bind");
+
+    printf("Aguardando dados do cliente...\n");
+
+    outfile = fopen("recebido_servidor.txt", "wb");
+    if (!outfile) die("fopen()");
+
+    while (1) {
+        memset(buf, 0, BUFLEN);
+
+        recv_len = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *) &si_other, (socklen_t *)&slen);
+        if (recv_len == -1)
+            die("recvfrom()");
+
+        if (strncmp(buf, "EOF", 3) == 0) break;
+
+        fwrite(buf, sizeof(char), recv_len, outfile);
+    }
+
+    printf("Arquivo recebido com sucesso e salvo como 'recebido_servidor.txt'!\n");
+    fclose(outfile);
+    close(s);
     return 0;
 }

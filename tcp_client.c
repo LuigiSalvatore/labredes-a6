@@ -7,28 +7,50 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#define PORT 8080
+#include <sys/socket.h>
 
-int main() {
-    int sock = 0;
+#define BUFLEN 512
+
+void die(const char *s) {
+    perror(s);
+    exit(1);
+}
+
+int main(int argc, char **argv) {
+    int sockfd;
     struct sockaddr_in serv_addr;
-    char buffer[1024] = {0};
-    FILE *file = fopen("arquivo.txt", "r");
+    FILE *infile;
+    char buf[BUFLEN];
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr);
-
-    connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
-
-    int n;
-    while ((n = fread(buffer, sizeof(char), 1024, file)) > 0) {
-        send(sock, buffer, n, 0);
+    if (argc != 4) {
+        printf("Usage: %s <server_ip> <port> <arquivo>\n", argv[0]);
+        return -1;
     }
 
-    fclose(file);
-    close(sock);
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        die("socket");
+
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(atoi(argv[2]));
+
+    if (inet_pton(AF_INET, argv[1], &serv_addr.sin_addr) <= 0)
+        die("inet_pton");
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        die("connect");
+
+    infile = fopen(argv[3], "rb");
+    if (!infile) die("fopen");
+
+    int bytes_read;
+    while ((bytes_read = fread(buf, sizeof(char), BUFLEN, infile)) > 0) {
+        if (send(sockfd, buf, bytes_read, 0) < 0)
+            die("send");
+    }
+
+    printf("Arquivo enviado com sucesso via TCP!\n");
+    fclose(infile);
+    close(sockfd);
     return 0;
 }

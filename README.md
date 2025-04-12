@@ -10,7 +10,7 @@ O objetivo dessa atividade é desenvolver uma aplicação em rede utilizando **s
 O prazo para entrega é **14 de abril de 2025**.
 
 ## Link do Relatório:
-[placeholder]
+[]()
 
 ## Especificações:
 1. Desenvolver uma aplicação Cliente/Servidor utilizando **TCP** e **UDP**.

@@ -1,27 +1,11 @@
-# Makefile para compilar o cliente e o servidor para TCP e UDP
+CC      = gcc
+CFLAGS  = -O2 -Wall
 
-CC = gcc
-CFLAGS = -Wall
+all:
+	$(CC) $(CFLAGS) udp_server.c -o server_udp
+	$(CC) $(CFLAGS) udp_client.c -o client_udp
+	$(CC) $(CFLAGS) tcp_server.c -o server_tcp
+	$(CC) $(CFLAGS) tcp_client.c -o client_tcp
 
-# Definindo os arquivos de código
-SOURCES_TCP = servidor_tcp.c cliente_tcp.c
-SOURCES_UDP = servidor_udp.c cliente_udp.c
-
-# Definindo os executáveis
-EXEC_TCP = servidor_tcp cliente_tcp
-EXEC_UDP = servidor_udp cliente_udp
-
-# Compilação dos executáveis TCP
-all: $(EXEC_TCP) $(EXEC_UDP)
-
-$(EXEC_TCP): $(SOURCES_TCP)
-	$(CC) $(CFLAGS) -o servidor_tcp servidor_tcp.c
-	$(CC) $(CFLAGS) -o cliente_tcp cliente_tcp.c
-
-$(EXEC_UDP): $(SOURCES_UDP)
-	$(CC) $(CFLAGS) -o servidor_udp servidor_udp.c
-	$(CC) $(CFLAGS) -o cliente_udp cliente_udp.c
-
-# Limpeza dos arquivos gerados
 clean:
-	rm -f $(EXEC_TCP) $(EXEC_UDP)
+	-rm -f *.o *~ server_udp client_udp server_tcp client_tcp
