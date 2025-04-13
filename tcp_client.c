@@ -1,56 +1,80 @@
-// =========================
-// ===== CLIENTE TCP =====
-// =========================
-
+/* 
+    TCP client para enviar um arquivo para o servidor
+    uso: ./tcpclient <hostname> <porta> <arquivo>
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netdb.h> 
 
-#define BUFLEN 512
+#define BUFSIZE 1024
 
-void die(const char *s) {
+void die(char *s) {
     perror(s);
     exit(1);
 }
 
 int main(int argc, char **argv) {
-    int sockfd;
-    struct sockaddr_in serv_addr;
-    FILE *infile;
-    char buf[BUFLEN];
+    int sockfd, portno, n;
+    struct sockaddr_in serveraddr;
+    struct hostent *server;
+    char *hostname;
+    char buf[BUFSIZE];
+    FILE *file;
 
     if (argc != 4) {
-        printf("Usage: %s <server_ip> <port> <arquivo>\n", argv[0]);
-        return -1;
+        fprintf(stderr,"uso: %s <hostname> <porta> <arquivo>\n", argv[0]);
+        exit(0);
     }
 
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    hostname = argv[1];
+    portno = atoi(argv[2]);
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) 
         die("socket");
 
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(atoi(argv[2]));
+    server = gethostbyname(hostname);
+    if (server == NULL)
+        die("gethostbyname");
 
-    if (inet_pton(AF_INET, argv[1], &serv_addr.sin_addr) <= 0)
-        die("inet_pton");
+    memset((char *) &serveraddr, 0, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    serveraddr.sin_port = htons(portno);
 
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    if (inet_aton(hostname, &serveraddr.sin_addr) == 0)
+        die("inet_aton");
+
+    printf("Tentando conectar em %s:%d...\n", hostname, portno);
+    if (connect(sockfd, (const struct sockaddr *) &serveraddr, sizeof(serveraddr)) < 0) 
         die("connect");
 
-    infile = fopen(argv[3], "rb");
-    if (!infile) die("fopen");
-
-    int bytes_read;
-    while ((bytes_read = fread(buf, sizeof(char), BUFLEN, infile)) > 0) {
-        if (send(sockfd, buf, bytes_read, 0) < 0)
-            die("send");
+    // Abre o arquivo que será enviado
+    file = fopen(argv[3], "rb");
+    if (!file) {
+        perror("Erro ao abrir o arquivo");
+        close(sockfd);
+        exit(1);
     }
 
-    printf("Arquivo enviado com sucesso via TCP!\n");
-    fclose(infile);
+    // Envia o conteúdo do arquivo em blocos
+    while (!feof(file)) {
+        memset(buf, 0, BUFSIZE);
+        size_t bytes_read = fread(buf, 1, BUFSIZE, file);
+        if (bytes_read > 0) {
+            n = write(sockfd, buf, bytes_read);
+            if (n < 0) die("write");
+        }
+    }
+
+    printf("Arquivo enviado com sucesso.\n");
+
+    fclose(file);
     close(sockfd);
     return 0;
 }

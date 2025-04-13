@@ -1,6 +1,7 @@
-// =========================
-// ===== SERVIDOR TCP =====
-// =========================
+/*
+    Servidor TCP para receber um arquivo e salvar como 'recebido.txt'
+    Uso: ./servidor_tcp <porta>
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -9,56 +10,78 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#define BUFLEN 512
+#define BUFLEN 1024
 
-void die(char *s)
-{
+void die(char *s) {
     perror(s);
     exit(1);
 }
 
-int main(int argc, char **argv)
-{
-    struct sockaddr_in si_me, si_other;
-    int s, slen = sizeof(si_other), recv_len;
+int main(int argc, char *argv[]) {
+    int sockfd, connfd, port, recv_len;
+    struct sockaddr_in serv_addr, cli_addr;
+    socklen_t clilen;
     char buf[BUFLEN];
-    FILE *outfile;
 
     if (argc != 2) {
-        printf("Usage: %s <port>\n", argv[0]);
-        return -1;
+        fprintf(stderr, "Uso: %s <porta>\n", argv[0]);
+        exit(1);
     }
 
-    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+    port = atoi(argv[1]);
+
+    // Cria socket TCP
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         die("socket");
 
-    memset((char *) &si_me, 0, sizeof(si_me));
-    si_me.sin_family = AF_INET;
-    si_me.sin_port = htons(atoi(argv[1]));
-    si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+    // Prepara estrutura do servidor
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(port);
 
-    if (bind(s, (struct sockaddr*)&si_me, sizeof(si_me)) == -1)
+    // Faz o bind
+    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         die("bind");
 
-    printf("Aguardando dados do cliente...\n");
+    // Escuta conexões
+    if (listen(sockfd, 5) < 0)
+        die("listen");
 
-    outfile = fopen("recebido_servidor.txt", "wb");
-    if (!outfile) die("fopen()");
+    printf("Servidor escutando na porta %d...\n", port);
+
+    clilen = sizeof(cli_addr);
 
     while (1) {
-        memset(buf, 0, BUFLEN);
+        printf("Aguardando conexão de cliente...\n");
 
-        recv_len = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *) &si_other, (socklen_t *)&slen);
-        if (recv_len == -1)
-            die("recvfrom()");
+        // Aceita conexão do cliente
+        connfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+        if (connfd < 0)
+            die("accept");
 
-        if (strncmp(buf, "EOF", 3) == 0) break;
+        printf("Cliente conectado: %s:%d\n",
+               inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
-        fwrite(buf, sizeof(char), recv_len, outfile);
+        // Abre arquivo para escrita
+        FILE *file = fopen("recebido.txt", "wb");
+        if (!file) {
+            perror("Erro ao criar o arquivo");
+            close(connfd);
+            continue;
+        }
+
+        // Recebe dados e grava no arquivo
+        while ((recv_len = read(connfd, buf, BUFLEN)) > 0) {
+            fwrite(buf, 1, recv_len, file);
+        }
+
+        printf("Arquivo recebido e salvo como 'recebido.txt'\n");
+
+        fclose(file);
+        close(connfd);
     }
 
-    printf("Arquivo recebido com sucesso e salvo como 'recebido_servidor.txt'!\n");
-    fclose(outfile);
-    close(s);
+    close(sockfd);
     return 0;
 }
